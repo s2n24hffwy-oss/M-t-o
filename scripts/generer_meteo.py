@@ -373,8 +373,6 @@ def generer_pdf(donnees, maintenant, chemin):
     st_ville = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=9, leading=10.5)
     st_temp = ParagraphStyle("tp", fontName="Helvetica-Bold", fontSize=11.5, leading=13, alignment=TA_CENTER)
 
-    jour_court = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"][maintenant.weekday()]
-    mois_court = ["jan", "fév", "mar", "avr", "mai", "juin", "juil", "août", "sep", "oct", "nov", "déc"][maintenant.month - 1]
     ICONE = 24
 
     def temp(v):
@@ -384,7 +382,7 @@ def generer_pdf(donnees, maintenant, chemin):
         lignes = [
             [Paragraph(prov, st_prov), "", "", "", ""],
             [Paragraph("Ville", ParagraphStyle("vl", parent=st_ent, alignment=TA_LEFT)),
-             Paragraph(f"{jour_court} {maintenant.day} {mois_court}", st_ent), "", Paragraph("Nuit", st_ent), ""],
+             Paragraph("Jour", st_ent), "", Paragraph("Nuit", st_ent), ""],
         ]
         for v in villes:
             j, n = (v.get("jour") or {}), (v.get("nuit") or {})
