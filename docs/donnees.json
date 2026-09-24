@@ -1,5 +1,5 @@
 {
- "genere": "2026-09-23T21:01:18.140932-04:00",
+ "genere": "2026-09-23T21:06:27.951637-04:00",
  "villes": {
   "Québec": [
    {
@@ -8,10 +8,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.51,-73.55",
     "actuel": {
-     "temp": 13.7,
+     "temp": 12.6,
      "conditions": "Généralement dégagé",
-     "humidite": 56,
-     "vent": "NE 12 km/h (rafales 37)",
+     "humidite": 60,
+     "vent": "NE 11 km/h (rafales 37)",
      "station": "Aéroport int. Montréal-Trudeau"
     },
     "jour": null,
@@ -42,10 +42,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=46.81,-71.21",
     "actuel": {
-     "temp": 9.6,
+     "temp": 7.9,
      "conditions": "Dégagé",
-     "humidite": 92,
-     "vent": "NO 5 km/h (rafales 31)",
+     "humidite": 95,
+     "vent": "N 4 km/h (rafales 31)",
      "station": "Aéroport int. Lesage de Québec"
     },
     "jour": null,
@@ -76,10 +76,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.6,-73.67",
     "actuel": {
-     "temp": 13.7,
+     "temp": 12.6,
      "conditions": "Généralement dégagé",
-     "humidite": 56,
-     "vent": "NE 12 km/h (rafales 37)",
+     "humidite": 60,
+     "vent": "NE 11 km/h (rafales 37)",
      "station": "Aéroport int. Montréal-Trudeau"
     },
     "jour": null,
@@ -113,7 +113,7 @@
      "temp": 9.1,
      "conditions": "Dégagé",
      "humidite": 79,
-     "vent": "NE 2 km/h (rafales 27)",
+     "vent": "N 2 km/h (rafales 27)",
      "station": "Aéroport de Gatineau"
     },
     "jour": null,
@@ -184,10 +184,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.4,-71.89",
     "actuel": {
-     "temp": 8.2,
+     "temp": 9.3,
      "conditions": "Dégagé",
-     "humidite": 83,
-     "vent": "ENE 5 km/h (rafales 28)",
+     "humidite": 74,
+     "vent": "ENE 8 km/h (rafales 28)",
      "station": "Aéroport de Sherbrooke"
     },
     "jour": null,
@@ -292,10 +292,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=46.34,-72.54",
     "actuel": {
-     "temp": 7.3,
+     "temp": 5.5,
      "conditions": "Dégagé",
-     "humidite": 88,
-     "vent": "NNE calme km/h (rafales 28)",
+     "humidite": 95,
+     "vent": "N 4 km/h (rafales 28)",
      "station": "Aéroport de Trois-Rivières"
     },
     "jour": null,
@@ -360,10 +360,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.82,-73.96",
     "actuel": {
-     "temp": 9.8,
+     "temp": 8.8,
      "conditions": "Généralement dégagé",
-     "humidite": 80,
-     "vent": "N 2 km/h (rafales 27)",
+     "humidite": 83,
+     "vent": "N 5 km/h (rafales 27)",
      "station": "Aéroport int. Montréal-Mirabel"
     },
     "jour": null,
@@ -394,10 +394,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.88,-72.48",
     "actuel": {
-     "temp": 9.4,
+     "temp": 6.9,
      "conditions": null,
-     "humidite": 78,
-     "vent": "NNE 11 km/h (rafales 27)",
+     "humidite": 89,
+     "vent": "NNE 2 km/h (rafales 27)",
      "station": "Saint-Germain-de-Grantham"
     },
     "jour": null,
@@ -428,9 +428,9 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.4,-72.72",
     "actuel": {
-     "temp": 10.4,
+     "temp": 8.9,
      "conditions": null,
-     "humidite": 85,
+     "humidite": 93,
      "vent": "NE calme km/h (rafales 33)",
      "station": "Granby"
     },
@@ -530,10 +530,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=48.24,-79.02",
     "actuel": {
-     "temp": 10.0,
+     "temp": 7.3,
      "conditions": "Dégagé",
-     "humidite": 76,
-     "vent": "N 2 km/h (rafales 33)",
+     "humidite": 83,
+     "vent": "ENE 6 km/h (rafales 33)",
      "station": "Aéroport de Rouyn"
     },
     "jour": null,
@@ -573,7 +573,7 @@
      "temp": 8.2,
      "conditions": "Dégagé",
      "humidite": 74,
-     "vent": "S calme km/h (rafales 27)",
+     "vent": "N 2 km/h (rafales 27)",
      "station": "Aéroport régional de Val-d'Or"
     },
     "jour": null,
@@ -610,10 +610,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=50.21,-66.39",
     "actuel": {
-     "temp": 6.2,
+     "temp": 9.5,
      "conditions": "Partiellement nuageux",
-     "humidite": 94,
-     "vent": "ONO 5 km/h (rafales 29)",
+     "humidite": 86,
+     "vent": "O 15 km/h (rafales 29)",
      "station": "Aéroport de Sept-Îles"
     },
     "jour": null,
@@ -678,10 +678,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=48.83,-64.57",
     "actuel": {
-     "temp": 7.3,
+     "temp": 6.7,
      "conditions": "Dégagé",
-     "humidite": 91,
-     "vent": "O 8 km/h (rafales 27)",
+     "humidite": 95,
+     "vent": "N 2 km/h (rafales 27)",
      "station": "Aéroport de Gaspé"
     },
     "jour": null,
@@ -714,10 +714,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=43.65,-79.38",
     "actuel": {
-     "temp": 15.6,
-     "conditions": "Généralement dégagé",
-     "humidite": 57,
-     "vent": "E 13 km/h (rafales 41)",
+     "temp": 15.1,
+     "conditions": "Dégagé",
+     "humidite": 55,
+     "vent": "E 9 km/h (rafales 41)",
      "station": "Aéroport int. Pearson de Toronto"
     },
     "jour": null,
@@ -748,10 +748,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=45.4,-75.69",
     "actuel": {
-     "temp": 12.5,
+     "temp": 11.2,
      "conditions": "Dégagé",
-     "humidite": 57,
-     "vent": "ENE 9 km/h (rafales 30)",
+     "humidite": 64,
+     "vent": "ENE 11 km/h (rafales 30)",
      "station": "Aéroport int. Macdonald-Cartier d'Ottawa"
     },
     "jour": null,
@@ -788,10 +788,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=43.59,-79.66",
     "actuel": {
-     "temp": 15.6,
-     "conditions": "Généralement dégagé",
-     "humidite": 57,
-     "vent": "E 13 km/h (rafales 41)",
+     "temp": 15.1,
+     "conditions": "Dégagé",
+     "humidite": 55,
+     "vent": "E 9 km/h (rafales 41)",
      "station": "Aéroport int. Pearson de Toronto"
     },
     "jour": null,
@@ -822,10 +822,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=43.69,-79.76",
     "actuel": {
-     "temp": 15.6,
-     "conditions": "Généralement dégagé",
-     "humidite": 57,
-     "vent": "E 13 km/h (rafales 41)",
+     "temp": 15.1,
+     "conditions": "Dégagé",
+     "humidite": 55,
+     "vent": "E 9 km/h (rafales 41)",
      "station": "Aéroport int. Pearson de Toronto"
     },
     "jour": null,
@@ -856,10 +856,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=43.26,-79.87",
     "actuel": {
-     "temp": 14.0,
+     "temp": 13.8,
      "conditions": "Généralement dégagé",
-     "humidite": 69,
-     "vent": "ENE 28 km/h (rafales 39)",
+     "humidite": 70,
+     "vent": "ENE 27 km/h (rafales 39)",
      "station": "Aéroport int. Munro de Hamilton"
     },
     "jour": null,
@@ -890,10 +890,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=42.98,-81.25",
     "actuel": {
-     "temp": 13.0,
+     "temp": 12.6,
      "conditions": "Généralement dégagé",
-     "humidite": 65,
-     "vent": "ENE 16 km/h (rafales 29)",
+     "humidite": 72,
+     "vent": "ENE 22 km/h (rafales 31)",
      "station": "Aéroport int. de London"
     },
     "jour": null,
@@ -1026,10 +1026,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=42.29,-83.05",
     "actuel": {
-     "temp": 16.6,
+     "temp": 16.5,
      "conditions": "Nuageux",
      "humidite": 60,
-     "vent": "ENE 15 km/h (rafales 30)",
+     "vent": "NE 17 km/h (rafales 30)",
      "station": "Aéroport de Windsor"
     },
     "jour": null,
@@ -1060,10 +1060,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=43.9,-78.86",
     "actuel": {
-     "temp": 13.9,
+     "temp": 11.9,
      "conditions": "Dégagé",
-     "humidite": 71,
-     "vent": "ENE 8 km/h (rafales 30)",
+     "humidite": 78,
+     "vent": "NNE 9 km/h (rafales 30)",
      "station": "Aéroport exécutif d'Oshawa"
     },
     "jour": null,
@@ -1128,10 +1128,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=44.45,-79.73",
     "actuel": {
-     "temp": 15.3,
+     "temp": 14.9,
      "conditions": null,
-     "humidite": 56,
-     "vent": "ESE 13 km/h (rafales 33)",
+     "humidite": 58,
+     "vent": "ESE 14 km/h (rafales 33)",
      "station": "Aéroport régional de Lac Simcoe"
     },
     "jour": null,
@@ -1162,10 +1162,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=43.54,-80.24",
     "actuel": {
-     "temp": 13.1,
+     "temp": 12.1,
      "conditions": null,
-     "humidite": 59,
-     "vent": "E 9 km/h (rafales 34)",
+     "humidite": 67,
+     "vent": "ENE 8 km/h (rafales 34)",
      "station": "Guelph Turfgrass Institute"
     },
     "jour": null,
@@ -1196,10 +1196,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=44.24,-76.5",
     "actuel": {
-     "temp": 15.3,
+     "temp": 14.3,
      "conditions": "Dégagé",
-     "humidite": 56,
-     "vent": "NE 11 km/h (rafales 30)",
+     "humidite": 59,
+     "vent": "NNE 13 km/h (rafales 30)",
      "station": "Aéroport de Kingston"
     },
     "jour": null,
@@ -1270,10 +1270,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=48.41,-89.24",
     "actuel": {
-     "temp": 12.2,
+     "temp": 11.0,
      "conditions": "Généralement dégagé",
-     "humidite": 86,
-     "vent": "E 13 km/h (rafales 27)",
+     "humidite": 92,
+     "vent": "ENE 10 km/h (rafales 27)",
      "station": "Aéroport de Thunder Bay"
     },
     "jour": null,
@@ -1304,10 +1304,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=46.52,-84.33",
     "actuel": {
-     "temp": 10.6,
+     "temp": 8.0,
      "conditions": "Généralement dégagé",
-     "humidite": 81,
-     "vent": "ESE 6 km/h (rafales 33)",
+     "humidite": 89,
+     "vent": "E 5 km/h (rafales 33)",
      "station": "Aéroport de Sault Ste. Marie"
     },
     "jour": null,
@@ -1338,10 +1338,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=46.32,-79.47",
     "actuel": {
-     "temp": 12.6,
+     "temp": 11.2,
      "conditions": "Dégagé",
-     "humidite": 54,
-     "vent": "ENE 13 km/h (rafales 36)",
+     "humidite": 60,
+     "vent": "E 14 km/h (rafales 36)",
      "station": "Aéroport de North Bay"
     },
     "jour": null,
@@ -1378,10 +1378,10 @@
     "ok": true,
     "lien": "https://meteo.gc.ca/fr/location/index.html?coords=48.48,-81.21",
     "actuel": {
-     "temp": 9.8,
+     "temp": 7.0,
      "conditions": "Dégagé",
-     "humidite": 72,
-     "vent": "ESE 7 km/h (rafales 31)",
+     "humidite": 84,
+     "vent": "ESE 5 km/h (rafales 31)",
      "station": "Aéroport Victor Power de Timmins"
     },
     "jour": null,
