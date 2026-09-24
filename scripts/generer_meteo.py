@@ -26,12 +26,11 @@ from zoneinfo import ZoneInfo
 
 import requests
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
-from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import (KeepTogether, PageBreak, Paragraph, SimpleDocTemplate,
-                                Spacer, Table, TableStyle)
+from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Table, TableStyle
 
 # ----------------------------------------------------------------------------
 # Villes (identifiants de l'API d'Environnement Canada). Pour en ajouter une,
@@ -135,6 +134,7 @@ def resume_periode(periode):
         "nom": fr(periode, "period", "textForecastName"),
         "conditions": fr(periode, "abbreviatedForecast", "textSummary"),
         "icone": fr(periode, "abbreviatedForecast", "icon", "url"),
+        "code": fr(periode, "abbreviatedForecast", "icon", "value"),
         "max": temp_de(periode, "high"),
         "min": temp_de(periode, "low"),
         "pop": prob_precip(periode),
@@ -226,98 +226,203 @@ def pct(v):
 
 
 # ------------------------------- PDF ---------------------------------------
+# Icônes météo dessinées en vectoriel (inspirées de celles de meteo.gc.ca),
+# choisies d'après le code d'icône d'Environnement Canada.
+PLUIE = {6, 11, 12, 13, 28, 36}
+NEIGE = {8, 16, 17, 18, 25, 26, 38, 40}
+MIXTE = {7, 14, 15, 27, 37}
+ORAGE = {9, 19, 39, 41, 42, 46, 47, 48}
+BRUME = {23, 24, 44, 45}
+JAUNE, ORANGE = colors.HexColor("#f9b233"), colors.HexColor("#f39200")
+NUIT_FOND, LUNE = colors.HexColor("#1b2a4a"), colors.HexColor("#fff4c2")
+NUAGE, NUAGE_BORD = colors.HexColor("#dfe5ec"), colors.HexColor("#9aa7b6")
+NUAGE_GRIS = colors.HexColor("#b9c3ce")
+
+
+def code_icone(per):
+    if not per:
+        return None
+    try:
+        return int(per.get("code"))
+    except (TypeError, ValueError):
+        m = re.search(r"(\d+)\.gif", per.get("icone") or "")
+        return int(m.group(1)) if m else None
+
+
+class IconeMeteo(Flowable):
+    """Petite icône météo de « taille » points de côté."""
+
+    def __init__(self, code, nuit=False, taille=26):
+        super().__init__()
+        self.code, self.nuit, self.t = code, nuit, taille
+        self.width = self.height = taille
+
+    def _soleil(self, c, x, y, r):
+        import math
+        c.setStrokeColor(ORANGE)
+        c.setLineWidth(r * 0.16)
+        c.setLineCap(1)
+        for i in range(8):
+            a = i * math.pi / 4
+            c.line(x + math.cos(a) * r * 1.3, y + math.sin(a) * r * 1.3,
+                   x + math.cos(a) * r * 1.75, y + math.sin(a) * r * 1.75)
+        c.setFillColor(JAUNE)
+        c.setStrokeColor(ORANGE)
+        c.setLineWidth(r * 0.08)
+        c.circle(x, y, r, stroke=1, fill=1)
+
+    def _lune(self, c, x, y, r):
+        c.setFillColor(NUIT_FOND)
+        c.circle(x, y, r * 1.55, stroke=0, fill=1)
+        c.setFillColor(LUNE)
+        c.circle(x + r * 0.15, y, r * 0.95, stroke=0, fill=1)
+        c.setFillColor(NUIT_FOND)
+        c.circle(x - r * 0.35, y + r * 0.2, r * 0.85, stroke=0, fill=1)
+        c.setFillColor(colors.white)
+        for dx, dy, s in ((-0.9, -0.55, 0.09), (-0.55, 0.95, 0.07), (0.25, -1.05, 0.06), (-1.15, 0.3, 0.06)):
+            c.circle(x + dx * r, y + dy * r, r * s, stroke=0, fill=1)
+
+    def _nuage(self, c, x, y, w, gris=False):
+        c.setFillColor(NUAGE_GRIS if gris else NUAGE)
+        c.setStrokeColor(NUAGE_BORD)
+        c.setLineWidth(w * 0.03)
+        h = w * 0.36
+        p = c.beginPath()
+        p.roundRect(x, y, w, h, h / 2)
+        c.drawPath(p, stroke=1, fill=1)
+        c.circle(x + w * 0.35, y + h * 0.95, w * 0.22, stroke=1, fill=1)
+        c.circle(x + w * 0.62, y + h * 0.85, w * 0.17, stroke=1, fill=1)
+        c.setStrokeColor(NUAGE_GRIS if gris else NUAGE)
+        c.setLineWidth(w * 0.05)
+        c.line(x + w * 0.12, y + h * 0.5, x + w * 0.88, y + h * 0.5)
+
+    def draw(self):
+        c, t, code = self.canv, self.t, self.code
+        if code is None:
+            return
+        nuit = self.nuit or 30 <= code <= 39
+        c.saveState()
+        # Couverture nuageuse : 0 = aucun nuage, 1 = peu, 2 = partiel, 3 = couvert
+        if code in (0, 30):
+            nuages = 0
+        elif code in (1, 31):
+            nuages = 1
+        elif code in (2, 32, 6, 7, 8, 9, 36, 37, 38, 39):
+            nuages = 2
+        elif code in (3, 33):
+            nuages = 2.5
+        else:
+            nuages = 3
+        precip = (code in PLUIE, code in NEIGE, code in MIXTE, code in ORAGE, code in BRUME)
+        if nuages < 3:
+            gros = nuages == 0
+            cx, cy, r = (t / 2, t / 2, t * 0.24) if gros else (t * 0.38, t * 0.62, t * 0.17)
+            (self._lune if nuit else self._soleil)(c, cx, cy, r)
+        if nuages:
+            w = t * (0.62 if nuages == 1 else 0.8)
+            y = t * (0.3 if any(precip) else 0.2)
+            self._nuage(c, t - w - t * 0.04, y, w, gris=nuages == 3 and any(precip))
+        pluie, neige, mixte, orage, brume = precip
+        base = t * 0.12
+        if pluie or mixte:
+            c.setStrokeColor(colors.HexColor("#2d7fd3"))
+            c.setLineWidth(t * 0.06)
+            c.setLineCap(1)
+            for i, dx in enumerate((0.35, 0.55, 0.75)):
+                if mixte and i == 1:
+                    continue
+                c.line(t * dx, base + t * 0.1, t * (dx - 0.06), base - t * 0.06)
+        if neige or mixte:
+            c.setFillColor(colors.HexColor("#6aa9e9"))
+            for dx in ((0.55,) if mixte else (0.35, 0.55, 0.75)):
+                c.circle(t * dx, base + t * 0.02, t * 0.05, stroke=0, fill=1)
+        if orage:
+            c.setFillColor(JAUNE)
+            c.setStrokeColor(ORANGE)
+            c.setLineWidth(t * 0.02)
+            pts = ((0.58, 0.2), (0.44, 0.02), (0.54, 0.02), (0.46, -0.14), (0.66, 0.08), (0.56, 0.08), (0.64, 0.2))
+            p = c.beginPath()
+            p.moveTo(t * pts[0][0], t * pts[0][1] + base)
+            for px, py in pts[1:]:
+                p.lineTo(t * px, t * py + base)
+            p.close()
+            c.drawPath(p, stroke=1, fill=1)
+        if brume:
+            c.setStrokeColor(NUAGE_BORD)
+            c.setLineWidth(t * 0.05)
+            c.setLineCap(1)
+            for i in range(3):
+                c.line(t * 0.15, t * (0.3 + i * 0.18), t * 0.85, t * (0.3 + i * 0.18))
+        c.restoreState()
+
+
 def generer_pdf(donnees, maintenant, chemin):
-    doc = SimpleDocTemplate(str(chemin), pagesize=landscape(letter),
-                            leftMargin=1.2 * cm, rightMargin=1.2 * cm,
-                            topMargin=1.2 * cm, bottomMargin=1.2 * cm,
+    """PDF simplifié : une seule page, température de jour et de nuit avec icônes."""
+    marge = 1.2 * cm
+    doc = SimpleDocTemplate(str(chemin), pagesize=letter,
+                            leftMargin=marge, rightMargin=marge, topMargin=1.1 * cm, bottomMargin=1.1 * cm,
                             title=f"Météo du {date_longue(maintenant)}",
                             author="Environnement Canada (meteo.gc.ca)")
     bleu = colors.HexColor("#1f4e79")
-    st_titre = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=18, leading=22, textColor=bleu, spaceAfter=2)
-    st_sous = ParagraphStyle("s", fontName="Helvetica", fontSize=9, textColor=colors.HexColor("#555555"), spaceAfter=8)
-    st_h2 = ParagraphStyle("h2", fontName="Helvetica-Bold", fontSize=13, textColor=bleu, spaceBefore=6, spaceAfter=5)
-    st_cel = ParagraphStyle("c", fontName="Helvetica", fontSize=8, leading=9.5, alignment=TA_LEFT)
-    st_cel_b = ParagraphStyle("cb", parent=st_cel, fontName="Helvetica-Bold")
-    st_detail = ParagraphStyle("d", fontName="Helvetica", fontSize=8, leading=10)
-    st_alerte = ParagraphStyle("a", parent=st_cel, textColor=colors.HexColor("#b00020"), fontName="Helvetica-Bold")
+    st_titre = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=17, leading=21, textColor=bleu, alignment=TA_CENTER)
+    st_sous = ParagraphStyle("s", fontName="Helvetica", fontSize=8.5, leading=11, textColor=colors.HexColor("#666666"),
+                             alignment=TA_CENTER, spaceAfter=8)
+    st_prov = ParagraphStyle("p", fontName="Helvetica-Bold", fontSize=12, textColor=colors.white, alignment=TA_CENTER)
+    st_ent = ParagraphStyle("e", fontName="Helvetica-Bold", fontSize=9, leading=10.5, alignment=TA_CENTER,
+                            textColor=colors.HexColor("#333333"))
+    st_ville = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=9, leading=10.5)
+    st_temp = ParagraphStyle("tp", fontName="Helvetica-Bold", fontSize=11.5, leading=13, alignment=TA_CENTER)
 
-    def P(t, s=st_cel):
-        return Paragraph(html.escape(str(t)) if t not in (None, "") else "—", s)
+    jour_court = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"][maintenant.weekday()]
+    mois_court = ["jan", "fév", "mar", "avr", "mai", "juin", "juil", "août", "sep", "oct", "nov", "déc"][maintenant.month - 1]
+    ICONE = 24
+
+    def temp(v):
+        return "—" if v in (None, "") else f"{deg(v)}C"
+
+    def tableau(prov, villes):
+        lignes = [
+            [Paragraph(prov, st_prov), "", "", "", ""],
+            [Paragraph("Ville", ParagraphStyle("vl", parent=st_ent, alignment=TA_LEFT)),
+             Paragraph(f"{jour_court} {maintenant.day} {mois_court}", st_ent), "", Paragraph("Nuit", st_ent), ""],
+        ]
+        for v in villes:
+            j, n = (v.get("jour") or {}), (v.get("nuit") or {})
+            lignes.append([
+                Paragraph(html.escape(v["nom"]), st_ville),
+                IconeMeteo(code_icone(j), nuit=False, taille=ICONE) if v["ok"] and j else "",
+                Paragraph(temp(j.get("max")) if v["ok"] else "n.d.", st_temp),
+                IconeMeteo(code_icone(n), nuit=True, taille=ICONE) if v["ok"] and n else "",
+                Paragraph(temp(n.get("min")) if v["ok"] else "n.d.", st_temp),
+            ])
+        t = Table(lignes, colWidths=[4.3 * cm, 1.0 * cm, 1.55 * cm, 1.0 * cm, 1.55 * cm],
+                  rowHeights=[0.75 * cm, 0.75 * cm] + [1.03 * cm] * len(villes))
+        t.setStyle(TableStyle([
+            ("SPAN", (0, 0), (-1, 0)), ("SPAN", (1, 1), (2, 1)), ("SPAN", (3, 1), (4, 1)),
+            ("BACKGROUND", (0, 0), (-1, 0), bleu),
+            ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#e9eef4")),
+            ("ROWBACKGROUNDS", (0, 2), (-1, -1), [colors.white, colors.HexColor("#f6f8fa")]),
+            ("LINEBELOW", (0, 1), (-1, -1), 0.4, colors.HexColor("#d3dae2")),
+            ("LINEBEFORE", (1, 1), (1, -1), 0.4, colors.HexColor("#d3dae2")),
+            ("LINEBEFORE", (3, 1), (3, -1), 0.4, colors.HexColor("#d3dae2")),
+            ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#b8c3cf")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (1, 2), (1, -1), "CENTER"), ("ALIGN", (3, 2), (3, -1), "CENTER"),
+            ("LEFTPADDING", (1, 2), (-1, -1), 2), ("RIGHTPADDING", (1, 2), (-1, -1), 2),
+        ]))
+        return t
+
+    tableaux = [tableau(prov, villes) for prov, villes in donnees.items()]
+    cote_a_cote = Table([tableaux], colWidths=[(letter[0] - 2 * marge) / 2] * 2)
+    cote_a_cote.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                     ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3)]))
 
     elements = [
         Paragraph(f"Météo du {date_longue(maintenant)}", st_titre),
-        Paragraph(f"Québec et Ontario · Généré le {maintenant.strftime('%d/%m/%Y à %H:%M')} (heure de l'Est) · "
-                  "Source : Environnement et Changement climatique Canada — meteo.gc.ca", st_sous),
+        Paragraph(f"Maximum le jour, minimum la nuit · Généré à {maintenant.strftime('%H:%M')} · Source : meteo.gc.ca", st_sous),
+        cote_a_cote,
     ]
-
-    entetes = ["Ville", "Actuel", "Jour\nmax", "Conditions (jour)", "Nuit\nmin", "Conditions (nuit)",
-               "Prob.\nprécip.", "Normales\nmax / min", "Soleil\nlever / coucher", "Alertes"]
-    largeurs = [4.2, 1.4, 1.2, 4.4, 1.2, 4.4, 1.6, 1.9, 2.2, 3.0]
-
-    for num, (prov, villes) in enumerate(donnees.items()):
-        lignes = [[P(e.replace("\n", " "), st_cel_b) for e in entetes]]
-        fusions = []
-        for v in villes:
-            if not v["ok"]:
-                fusions.append(("SPAN", (1, len(lignes)), (-1, len(lignes))))
-                lignes.append([P(v["nom"], st_cel_b), P("Données indisponibles pour le moment")] + [""] * 8)
-                continue
-            j, n = v["jour"] or {}, v["nuit"] or {}
-            pops = [x for x in (j.get("pop"), n.get("pop")) if x not in (None, "")]
-            alertes = "; ".join(a["titre"] for a in v["alertes"] if a.get("titre"))
-            lignes.append([
-                P(v["nom"], st_cel_b),
-                P(deg(v["actuel"]["temp"])),
-                P(deg(j.get("max")) if j else "—", st_cel_b),
-                P(j.get("conditions") if j else "(période de jour terminée)"),
-                P(deg(n.get("min")), st_cel_b),
-                P(n.get("conditions")),
-                P(" / ".join(pct(x) for x in pops) if pops else "—"),
-                P(f"{deg(v['normales']['max'])} / {deg(v['normales']['min'])}"),
-                P(f"{v['lever'] or '—'} / {v['coucher'] or '—'}"),
-                P(alertes or "Aucune", st_alerte if alertes else st_cel),
-            ])
-        t = Table(lignes, colWidths=[w * cm for w in largeurs], repeatRows=1)
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dce6f1")),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f8fb")]),
-            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#c4cfdb")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 2.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-        ] + fusions))
-        if num:
-            elements.append(PageBreak())
-        elements += [Paragraph(prov, st_h2), t, Spacer(1, 6)]
-
-    # Détail complet par ville
-    elements += [PageBreak(), Paragraph("Prévisions détaillées", st_titre),
-                 Paragraph("Texte intégral des prévisions d'Environnement Canada pour aujourd'hui et cette nuit.", st_sous)]
-    for prov, villes in donnees.items():
-        elements.append(Paragraph(prov, st_h2))
-        for v in villes:
-            if not v["ok"]:
-                continue
-            bloc = [Paragraph(f"<b>{html.escape(v['nom'])}</b> — actuellement {deg(v['actuel']['temp'])}, "
-                              f"{html.escape(v['actuel']['conditions'] or '—')}"
-                              + (f", humidité {v['actuel']['humidite']} %" if v['actuel']['humidite'] is not None else "")
-                              + (f", vent {html.escape(v['actuel']['vent'])}" if v['actuel']['vent'] else ""), st_detail)]
-            for per in (v["jour"], v["nuit"]):
-                if per and per.get("texte"):
-                    bloc.append(Paragraph(f"<i>{html.escape(per['nom'] or '')} :</i> {html.escape(per['texte'])}", st_detail))
-            for a in v["alertes"]:
-                bloc.append(Paragraph(f"<font color='#b00020'><b>ALERTE : {html.escape(a['titre'] or '')}</b></font>", st_detail))
-            bloc.append(Spacer(1, 4))
-            elements.append(KeepTogether(bloc))
-
-    def pied(canvas, doc_):
-        canvas.saveState()
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(colors.HexColor("#777777"))
-        canvas.drawString(1.2 * cm, 0.6 * cm, "Données : Environnement et Changement climatique Canada (meteo.gc.ca)")
-        canvas.drawRightString(landscape(letter)[0] - 1.2 * cm, 0.6 * cm, f"Page {doc_.page}")
-        canvas.restoreState()
-
-    doc.build(elements, onFirstPage=pied, onLaterPages=pied)
+    doc.build(elements)
 
 
 # ------------------------------- HTML --------------------------------------
