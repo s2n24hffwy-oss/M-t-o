@@ -1,0 +1,51 @@
+name: Météo du matin
+
+on:
+  schedule:
+    # GitHub utilise l'heure UTC. Deux horaires pour tomber à 5 h 30 toute l'année :
+    #  - 9 h 30 UTC = 5 h 30 l'été (heure avancée de l'Est)
+    #  - 10 h 30 UTC = 5 h 30 l'hiver (heure normale de l'Est)
+    # Le script ignore automatiquement l'exécution en trop.
+    - cron: "30 9 * * *"
+    - cron: "30 10 * * *"
+  workflow_dispatch:   # bouton « Run workflow » pour lancer manuellement
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meteo
+  cancel-in-progress: false
+
+jobs:
+  meteo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances
+        run: pip install requests reportlab
+
+      - name: Générer la météo et le PDF
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/generer_meteo.py --force
+          else
+            python scripts/generer_meteo.py
+          fi
+
+      - name: Publier sur le site
+        run: |
+          git config user.name "meteo-bot"
+          git config user.email "meteo-bot@users.noreply.github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "Aucun changement."
+          else
+            git commit -m "Météo du $(TZ=America/Toronto date +%Y-%m-%d)"
+            git push
+          fi
