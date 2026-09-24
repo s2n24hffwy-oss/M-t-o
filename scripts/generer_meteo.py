@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 import requests
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Table, TableStyle
@@ -356,45 +356,92 @@ class IconeMeteo(Flowable):
         c.restoreState()
 
 
+# Règles d'emballage (à modifier ici si elles changent)
+def emballage_local(jour, nuit):
+    """Envoi local (Transmed) : Hybride si le jour est à 0 °C ou moins, sinon Été."""
+    if jour is None:
+        return None
+    return "Hybride" if jour <= 0 else "Été"
+
+
+def emballage_24h(jour, nuit):
+    """Envoi 24 h (autres transporteurs)."""
+    if jour is None or nuit is None:
+        return None
+    if nuit <= -10 or jour < -5:
+        return "Hiver"
+    if jour <= 0 or nuit <= 0:
+        return "Hybride"
+    return "Été"
+
+
+COULEURS_EMBALLAGE = {
+    "Été": (colors.HexColor("#fde7b0"), colors.HexColor("#7a4b00")),
+    "Hybride": (colors.HexColor("#d4efd6"), colors.HexColor("#1d6331")),
+    "Hiver": (colors.HexColor("#d3e5fb"), colors.HexColor("#17457e")),
+}
+
+
+def nombre(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def generer_pdf(donnees, maintenant, chemin):
-    """PDF simplifié : une seule page, température de jour et de nuit avec icônes."""
-    marge = 1.2 * cm
-    doc = SimpleDocTemplate(str(chemin), pagesize=letter,
-                            leftMargin=marge, rightMargin=marge, topMargin=1.1 * cm, bottomMargin=1.1 * cm,
+    """PDF d'une page : température de jour et de nuit, et emballage à prévoir."""
+    marge = 1.1 * cm
+    page = landscape(letter)
+    doc = SimpleDocTemplate(str(chemin), pagesize=page,
+                            leftMargin=marge, rightMargin=marge, topMargin=0.9 * cm, bottomMargin=0.8 * cm,
                             title=f"Météo du {date_longue(maintenant)}",
                             author="Environnement Canada (meteo.gc.ca)")
     bleu = colors.HexColor("#1f4e79")
-    st_titre = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=17, leading=21, textColor=bleu, alignment=TA_CENTER)
-    st_sous = ParagraphStyle("s", fontName="Helvetica", fontSize=8.5, leading=11, textColor=colors.HexColor("#666666"),
-                             alignment=TA_CENTER, spaceAfter=8)
-    st_prov = ParagraphStyle("p", fontName="Helvetica-Bold", fontSize=12, textColor=colors.white, alignment=TA_CENTER)
-    st_ent = ParagraphStyle("e", fontName="Helvetica-Bold", fontSize=9, leading=10.5, alignment=TA_CENTER,
+    st_titre = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=16, leading=19, textColor=bleu, alignment=TA_CENTER)
+    st_sous = ParagraphStyle("s", fontName="Helvetica", fontSize=8, leading=10, textColor=colors.HexColor("#666666"),
+                             alignment=TA_CENTER, spaceAfter=6)
+    st_prov = ParagraphStyle("p", fontName="Helvetica-Bold", fontSize=11.5, textColor=colors.white, alignment=TA_CENTER)
+    st_ent = ParagraphStyle("e", fontName="Helvetica-Bold", fontSize=8.5, leading=10, alignment=TA_CENTER,
                             textColor=colors.HexColor("#333333"))
-    st_ville = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=9, leading=10.5)
-    st_temp = ParagraphStyle("tp", fontName="Helvetica-Bold", fontSize=11.5, leading=13, alignment=TA_CENTER)
-
-    ICONE = 24
+    st_ville = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=8.5, leading=10)
+    st_temp = ParagraphStyle("tp", fontName="Helvetica-Bold", fontSize=11, leading=12, alignment=TA_CENTER)
+    st_emb = ParagraphStyle("em", fontName="Helvetica-Bold", fontSize=8.5, leading=10, alignment=TA_CENTER)
+    st_note = ParagraphStyle("n", fontName="Helvetica", fontSize=7.5, leading=9.5, textColor=colors.HexColor("#444444"),
+                             spaceBefore=6)
+    ICONE = 20
 
     def temp(v):
         return "—" if v in (None, "") else f"{deg(v)}C"
 
     def tableau(prov, villes):
         lignes = [
-            [Paragraph(prov, st_prov), "", "", "", ""],
+            [Paragraph(prov, st_prov)] + [""] * 6,
             [Paragraph("Ville", ParagraphStyle("vl", parent=st_ent, alignment=TA_LEFT)),
-             Paragraph("Jour", st_ent), "", Paragraph("Nuit", st_ent), ""],
+             Paragraph("Jour", st_ent), "", Paragraph("Nuit", st_ent), "",
+             Paragraph("Local", st_ent), Paragraph("24 h", st_ent)],
         ]
+        styles = []
         for v in villes:
             j, n = (v.get("jour") or {}), (v.get("nuit") or {})
-            lignes.append([
+            tj, tn = nombre(j.get("max")), nombre(n.get("min"))
+            ligne = [
                 Paragraph(html.escape(v["nom"]), st_ville),
                 IconeMeteo(code_icone(j), nuit=False, taille=ICONE) if v["ok"] and j else "",
                 Paragraph(temp(j.get("max")) if v["ok"] else "n.d.", st_temp),
                 IconeMeteo(code_icone(n), nuit=True, taille=ICONE) if v["ok"] and n else "",
                 Paragraph(temp(n.get("min")) if v["ok"] else "n.d.", st_temp),
-            ])
-        t = Table(lignes, colWidths=[4.3 * cm, 1.0 * cm, 1.55 * cm, 1.0 * cm, 1.55 * cm],
-                  rowHeights=[0.75 * cm, 0.75 * cm] + [1.03 * cm] * len(villes))
+            ]
+            for col, mode in ((5, emballage_local(tj, tn)), (6, emballage_24h(tj, tn))):
+                if mode:
+                    fond, texte = COULEURS_EMBALLAGE[mode]
+                    ligne.append(Paragraph(mode, ParagraphStyle("x", parent=st_emb, textColor=texte)))
+                    styles.append(("BACKGROUND", (col, len(lignes)), (col, len(lignes)), fond))
+                else:
+                    ligne.append(Paragraph("—", st_emb))
+            lignes.append(ligne)
+        t = Table(lignes, colWidths=[4.2 * cm, 0.9 * cm, 1.45 * cm, 0.9 * cm, 1.45 * cm, 1.75 * cm, 1.75 * cm],
+                  rowHeights=[0.62 * cm, 0.6 * cm] + [0.78 * cm] * len(villes))
         t.setStyle(TableStyle([
             ("SPAN", (0, 0), (-1, 0)), ("SPAN", (1, 1), (2, 1)), ("SPAN", (3, 1), (4, 1)),
             ("BACKGROUND", (0, 0), (-1, 0), bleu),
@@ -403,15 +450,18 @@ def generer_pdf(donnees, maintenant, chemin):
             ("LINEBELOW", (0, 1), (-1, -1), 0.4, colors.HexColor("#d3dae2")),
             ("LINEBEFORE", (1, 1), (1, -1), 0.4, colors.HexColor("#d3dae2")),
             ("LINEBEFORE", (3, 1), (3, -1), 0.4, colors.HexColor("#d3dae2")),
+            ("LINEBEFORE", (5, 1), (5, -1), 0.8, colors.HexColor("#8fa1b5")),
+            ("LINEBEFORE", (6, 1), (6, -1), 0.4, colors.HexColor("#d3dae2")),
             ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#b8c3cf")),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("ALIGN", (1, 2), (1, -1), "CENTER"), ("ALIGN", (3, 2), (3, -1), "CENTER"),
             ("LEFTPADDING", (1, 2), (-1, -1), 2), ("RIGHTPADDING", (1, 2), (-1, -1), 2),
-        ]))
+            ("TOPPADDING", (0, 2), (-1, -1), 1), ("BOTTOMPADDING", (0, 2), (-1, -1), 1),
+        ] + styles))
         return t
 
     tableaux = [tableau(prov, villes) for prov, villes in donnees.items()]
-    cote_a_cote = Table([tableaux], colWidths=[(letter[0] - 2 * marge) / 2] * 2)
+    cote_a_cote = Table([tableaux], colWidths=[(page[0] - 2 * marge) / 2] * 2)
     cote_a_cote.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
                                      ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3)]))
 
@@ -419,6 +469,9 @@ def generer_pdf(donnees, maintenant, chemin):
         Paragraph(f"Météo du {date_longue(maintenant)}", st_titre),
         Paragraph(f"Maximum le jour, minimum la nuit · Généré à {maintenant.strftime('%H:%M')} · Source : meteo.gc.ca", st_sous),
         cote_a_cote,
+        Paragraph("<b>Local (Transmed)</b> : Hybride si le jour est à 0 °C ou moins, sinon Été.   "
+                  "<b>24 h</b> : Hiver si la nuit est à -10 °C ou moins ou si le jour est sous -5 °C ; "
+                  "sinon Hybride si le jour ou la nuit est à 0 °C ou moins ; sinon Été.", st_note),
     ]
     doc.build(elements)
 
