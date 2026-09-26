@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 import requests
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import landscape, letter
+from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Table, TableStyle
@@ -38,22 +38,12 @@ from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Table, Ta
 # ----------------------------------------------------------------------------
 VILLES = {
     "Québec": [
-        ("qc-147", "Montréal"), ("qc-133", "Québec"), ("qc-76", "Laval"),
-        ("qc-126", "Gatineau"), ("qc-109", "Longueuil"), ("qc-136", "Sherbrooke"),
-        ("qc-166", "Saguenay"), ("qc-78", "Lévis"), ("qc-130", "Trois-Rivières"),
-        ("qc-28", "Saint-Jean-sur-Richelieu"), ("qc-13", "Saint-Jérôme"),
-        ("qc-2", "Drummondville"), ("qc-5", "Granby"), ("qc-22", "Saint-Hyacinthe"),
-        ("qc-138", "Rimouski"), ("qc-148", "Rouyn-Noranda"), ("qc-149", "Val-d'Or"),
-        ("qc-141", "Sept-Îles"), ("qc-160", "Baie-Comeau"), ("qc-101", "Gaspé"),
-    ],
-    "Ontario": [
-        ("on-143", "Toronto"), ("on-118", "Ottawa"), ("on-24", "Mississauga"),
-        ("on-4", "Brampton"), ("on-77", "Hamilton"), ("on-137", "London"),
-        ("on-85", "Markham"), ("on-64", "Vaughan"), ("on-82", "Kitchener-Waterloo"),
-        ("on-94", "Windsor"), ("on-117", "Oshawa"), ("on-107", "St. Catharines"),
-        ("on-151", "Barrie"), ("on-5", "Guelph"), ("on-69", "Kingston"),
-        ("on-40", "Grand Sudbury"), ("on-100", "Thunder Bay"),
-        ("on-162", "Sault Ste. Marie"), ("on-139", "North Bay"), ("on-127", "Timmins"),
+        ("qc-144", "Alma"), ("qc-160", "Baie-Comeau"), ("qc-d4", "Chandler"),
+        ("qc-64", "Dolbeau-Mistassini"), ("qc-2", "Drummondville"), ("qc-126", "Gatineau"),
+        ("qc-47", "Mont-Laurier"), ("qc-147", "Montréal"), ("qc-133", "Québec"),
+        ("qc-138", "Rimouski"), ("qc-148", "Rouyn-Noranda"), ("qc-166", "Saguenay (Jonquière)"),
+        ("qc-b6", "Saint-Georges"), ("qc-141", "Sept-Îles"), ("qc-136", "Sherbrooke"),
+        ("qc-130", "Trois-Rivières"), ("qc-157", "Victoriaville"), ("qc-149", "Val-d'Or"),
     ],
 }
 
@@ -358,7 +348,7 @@ class IconeMeteo(Flowable):
 
 # Règles d'emballage (à modifier ici si elles changent)
 def emballage_local(jour, nuit):
-    """Envoi local (Transmed) : Hybride si le jour est à 0 °C ou moins, sinon Été."""
+    """Transmed (envoi local) : Hybride si le jour est à 0 °C ou moins, sinon Été."""
     if jour is None:
         return None
     return "Hybride" if jour <= 0 else "Été"
@@ -392,24 +382,24 @@ def nombre(v):
 def generer_pdf(donnees, maintenant, chemin):
     """PDF d'une page : température de jour et de nuit, et emballage à prévoir."""
     marge = 1.1 * cm
-    page = landscape(letter)
+    page = letter
     doc = SimpleDocTemplate(str(chemin), pagesize=page,
-                            leftMargin=marge, rightMargin=marge, topMargin=0.9 * cm, bottomMargin=0.8 * cm,
+                            leftMargin=marge, rightMargin=marge, topMargin=1.0 * cm, bottomMargin=0.9 * cm,
                             title=f"Météo du {date_longue(maintenant)}",
                             author="Environnement Canada (meteo.gc.ca)")
     bleu = colors.HexColor("#1f4e79")
-    st_titre = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=16, leading=19, textColor=bleu, alignment=TA_CENTER)
+    st_titre = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=18, leading=22, textColor=bleu, alignment=TA_CENTER)
     st_sous = ParagraphStyle("s", fontName="Helvetica", fontSize=8, leading=10, textColor=colors.HexColor("#666666"),
-                             alignment=TA_CENTER, spaceAfter=6)
+                             alignment=TA_CENTER, spaceAfter=10)
     st_prov = ParagraphStyle("p", fontName="Helvetica-Bold", fontSize=11.5, textColor=colors.white, alignment=TA_CENTER)
-    st_ent = ParagraphStyle("e", fontName="Helvetica-Bold", fontSize=8.5, leading=10, alignment=TA_CENTER,
+    st_ent = ParagraphStyle("e", fontName="Helvetica-Bold", fontSize=9.5, leading=11, alignment=TA_CENTER,
                             textColor=colors.HexColor("#333333"))
-    st_ville = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=8.5, leading=10)
-    st_temp = ParagraphStyle("tp", fontName="Helvetica-Bold", fontSize=11, leading=12, alignment=TA_CENTER)
-    st_emb = ParagraphStyle("em", fontName="Helvetica-Bold", fontSize=8.5, leading=10, alignment=TA_CENTER)
+    st_ville = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=10, leading=12)
+    st_temp = ParagraphStyle("tp", fontName="Helvetica-Bold", fontSize=12.5, leading=14, alignment=TA_CENTER)
+    st_emb = ParagraphStyle("em", fontName="Helvetica-Bold", fontSize=10, leading=12, alignment=TA_CENTER)
     st_note = ParagraphStyle("n", fontName="Helvetica", fontSize=7.5, leading=9.5, textColor=colors.HexColor("#444444"),
-                             spaceBefore=6)
-    ICONE = 20
+                             spaceBefore=8, alignment=TA_CENTER)
+    ICONE = 26
 
     def temp(v):
         return "—" if v in (None, "") else f"{deg(v)}C"
@@ -419,7 +409,7 @@ def generer_pdf(donnees, maintenant, chemin):
             [Paragraph(prov, st_prov)] + [""] * 6,
             [Paragraph("Ville", ParagraphStyle("vl", parent=st_ent, alignment=TA_LEFT)),
              Paragraph("Jour", st_ent), "", Paragraph("Nuit", st_ent), "",
-             Paragraph("Local", st_ent), Paragraph("24 h", st_ent)],
+             Paragraph("Transmed", st_ent), Paragraph("24 h", st_ent)],
         ]
         styles = []
         for v in villes:
@@ -440,8 +430,8 @@ def generer_pdf(donnees, maintenant, chemin):
                 else:
                     ligne.append(Paragraph("—", st_emb))
             lignes.append(ligne)
-        t = Table(lignes, colWidths=[4.2 * cm, 0.9 * cm, 1.45 * cm, 0.9 * cm, 1.45 * cm, 1.75 * cm, 1.75 * cm],
-                  rowHeights=[0.62 * cm, 0.6 * cm] + [0.78 * cm] * len(villes))
+        t = Table(lignes, colWidths=[4.8 * cm, 1.1 * cm, 1.7 * cm, 1.1 * cm, 1.7 * cm, 2.3 * cm, 2.3 * cm],
+                  rowHeights=[0.75 * cm, 0.7 * cm] + [1.05 * cm] * len(villes))
         t.setStyle(TableStyle([
             ("SPAN", (0, 0), (-1, 0)), ("SPAN", (1, 1), (2, 1)), ("SPAN", (3, 1), (4, 1)),
             ("BACKGROUND", (0, 0), (-1, 0), bleu),
@@ -461,16 +451,13 @@ def generer_pdf(donnees, maintenant, chemin):
         return t
 
     tableaux = [tableau(prov, villes) for prov, villes in donnees.items()]
-    cote_a_cote = Table([tableaux], colWidths=[(page[0] - 2 * marge) / 2] * 2)
-    cote_a_cote.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
-                                     ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3)]))
 
     elements = [
         Paragraph(f"Météo du {date_longue(maintenant)}", st_titre),
         Paragraph(f"Maximum le jour, minimum la nuit · Généré à {maintenant.strftime('%H:%M')} · Source : meteo.gc.ca", st_sous),
-        cote_a_cote,
-        Paragraph("<b>Local (Transmed)</b> : Hybride si le jour est à 0 °C ou moins, sinon Été.   "
-                  "<b>24 h</b> : Hiver si la nuit est à -10 °C ou moins ou si le jour est sous -5 °C ; "
+        *tableaux,
+        Paragraph("<b>Transmed</b> : Hybride si le jour est à 0 °C ou moins, sinon Été.   "
+                  "<br/><b>24 h</b> : Hiver si la nuit est à -10 °C ou moins ou si le jour est sous -5 °C ; "
                   "sinon Hybride si le jour ou la nuit est à 0 °C ou moins ; sinon Été.", st_note),
     ]
     doc.build(elements)
