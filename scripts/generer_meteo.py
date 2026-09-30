@@ -48,6 +48,7 @@ VILLES = {
 }
 
 API = "https://api.weather.gc.ca/collections/citypageweather-realtime/items/{id}?f=json&lang=fr"
+API_TOUS = "https://api.weather.gc.ca/collections/citypageweather-realtime/items?f=json&lang=fr&limit=250&offset={off}"
 FUSEAU = ZoneInfo("America/Toronto")
 RACINE = Path(__file__).resolve().parent.parent
 DOCS = RACINE / "docs"
@@ -196,6 +197,31 @@ def recolter():
     for (prov, i, n), brut in zip(taches, bruts):
         resultat[prov].append(extraire(i, n, brut))
     return resultat
+
+
+def recolter_secteurs():
+    """Météo de tous les secteurs d'Environnement Canada, pour la page « Cliniques du jour »."""
+    secteurs = {}
+    for off in range(0, 2000, 250):
+        for essai in range(3):
+            try:
+                r = requests.get(API_TOUS.format(off=off), timeout=180,
+                                 headers={"User-Agent": "meteo-quebec-ontario (GitHub Pages)"})
+                r.raise_for_status()
+                elements = r.json().get("features") or []
+                break
+            except Exception as e:
+                if essai == 2:
+                    raise
+                print(f"  ! secteurs (offset {off}) : nouvel essai ({e})", file=sys.stderr)
+                time.sleep(10)
+        if not elements:
+            break
+        for f in elements:
+            v = extraire(f.get("id"), fr(f.get("properties") or {}, "name") or f.get("id"), f)
+            j, n = v.get("jour") or {}, v.get("nuit") or {}
+            secteurs[f.get("id")] = [j.get("max"), j.get("code"), n.get("min"), n.get("code"), v["nom"]]
+    return secteurs
 
 
 # ----------------------------------------------------------------------------
@@ -518,6 +544,8 @@ h1 {{ margin:0 0 4px; font-size:clamp(1.5rem,4vw,2.2rem); }}
 .haut p {{ margin:0; opacity:.9; }}
 .bouton {{ display:inline-block; margin-top:16px; background:#fff; color:#1f4e79; font-weight:700; padding:12px 20px; border-radius:10px; text-decoration:none; }}
 .bouton:hover {{ background:#e8f0f8; }}
+.bouton.secondaire {{ background:transparent; color:#fff; border:2px solid rgba(255,255,255,.8); margin-left:8px; padding:10px 18px; }}
+.bouton.secondaire:hover {{ background:rgba(255,255,255,.12); }}
 main {{ padding:8px 16px 40px; }}
 h2 {{ color:var(--accent); margin:28px 0 12px; }}
 .grille {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }}
@@ -545,6 +573,7 @@ footer a, .archives a {{ color:var(--accent); }}
   <h1>Météo du {date_longue(maintenant)}</h1>
   <p>Principales villes du Québec et de l'Ontario · mis à jour à {maintenant.strftime('%H h %M')}</p>
   <a class="bouton" href="meteo-du-jour.pdf" download="meteo-{maintenant.strftime('%Y-%m-%d')}.pdf">⬇ Télécharger le PDF du jour</a>
+  <a class="bouton secondaire" href="cliniques.html">Cliniques du jour →</a>
 </div></div>
 <main>
 {sections}
@@ -577,22 +606,45 @@ def main():
     if nb_ok == 0:
         sys.exit("Aucune donnée reçue d'Environnement Canada : on garde la version précédente.")
 
-    ARCHIVES.mkdir(parents=True, exist_ok=True)
-    generer_pdf(donnees, maintenant, pdf_archive)
-    (DOCS / "meteo-du-jour.pdf").write_bytes(pdf_archive.read_bytes())
+    # Le soir, Environnement Canada ne donne plus la température du jour : un lancement manuel
+    # à ce moment-là ne doit pas écraser le rapport complet du matin.
+    sans_jour = not any(v.get("jour") for villes in donnees.values() for v in villes if v["ok"])
+    garder_matin = sans_jour and pdf_archive.exists()
+    if garder_matin:
+        print("Plus de température de jour à cette heure-ci : le rapport du matin est conservé.")
+    else:
+        ARCHIVES.mkdir(parents=True, exist_ok=True)
+        generer_pdf(donnees, maintenant, pdf_archive)
+        (DOCS / "meteo-du-jour.pdf").write_bytes(pdf_archive.read_bytes())
 
-    # Ne garder que les 30 derniers jours
-    limite = (maintenant - timedelta(days=JOURS_ARCHIVES)).strftime("%Y-%m-%d")
-    for a in ARCHIVES.glob("meteo-*.pdf"):
-        if a.stem[6:] < limite:
-            a.unlink()
-    archives = sorted(ARCHIVES.glob("meteo-*.pdf"), reverse=True)
+        # Ne garder que les 30 derniers jours
+        limite = (maintenant - timedelta(days=JOURS_ARCHIVES)).strftime("%Y-%m-%d")
+        for a in ARCHIVES.glob("meteo-*.pdf"):
+            if a.stem[6:] < limite:
+                a.unlink()
+        archives = sorted(ARCHIVES.glob("meteo-*.pdf"), reverse=True)
 
-    (DOCS / "index.html").write_text(generer_html(donnees, maintenant, archives), encoding="utf-8")
-    (DOCS / "donnees.json").write_text(json.dumps({"genere": maintenant.isoformat(), "villes": donnees},
-                                                  ensure_ascii=False, indent=1), encoding="utf-8")
+        (DOCS / "index.html").write_text(generer_html(donnees, maintenant, archives), encoding="utf-8")
+        (DOCS / "donnees.json").write_text(json.dumps({"genere": maintenant.isoformat(), "villes": donnees},
+                                                      ensure_ascii=False, indent=1), encoding="utf-8")
+
+    fichier_secteurs = DOCS / "secteurs.json"
+    try:
+        ancien = json.loads(fichier_secteurs.read_text(encoding="utf-8")).get("genere", "") if fichier_secteurs.exists() else ""
+    except ValueError:
+        ancien = ""
+    if garder_matin and ancien.startswith(maintenant.strftime("%Y-%m-%d")):
+        print("Météo des secteurs du matin conservée.")
+    else:
+        try:
+            secteurs = recolter_secteurs()
+            fichier_secteurs.write_text(json.dumps({"genere": maintenant.isoformat(), "secteurs": secteurs},
+                                                   ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+            print(f"{len(secteurs)} secteurs enregistrés pour la page Cliniques.")
+        except Exception as e:  # la page des villes reste à jour même si ceci échoue
+            print(f"  ! Secteurs non mis à jour : {e}", file=sys.stderr)
     (DOCS / ".nojekyll").touch()
-    print("Terminé : docs/index.html et docs/meteo-du-jour.pdf mis à jour.")
+    print("Terminé.")
 
 
 if __name__ == "__main__":
