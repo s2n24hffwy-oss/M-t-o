@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cliniques du jour</title>
+<meta name="description" content="Mode d'emballage des cliniques qui partent aujourd'hui, selon la météo de meteo.gc.ca.">
+<style>
+:root { --fond:#f4f6f9; --carte:#fff; --texte:#1c2430; --muet:#5c6878; --accent:#1f4e79; --bord:#dde3ea; }
+@media (prefers-color-scheme: dark) { :root { --fond:#12161c; --carte:#1b2129; --texte:#e6ebf1; --muet:#9aa6b5; --accent:#7fb0e0; --bord:#2b333e; } }
+* { box-sizing:border-box; }
+body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--fond); color:var(--texte); line-height:1.4; }
+.haut { background:#1f4e79; color:#fff; padding:28px 16px 22px; }
+@media (prefers-color-scheme: dark) { .haut { background:#1d3550; } }
+.haut > div, main { max-width:1000px; margin:0 auto; }
+h1 { margin:0 0 4px; font-size:clamp(1.5rem,4vw,2.2rem); }
+.haut p { margin:0; opacity:.9; }
+.nav { display:inline-block; margin-bottom:12px; color:#fff; opacity:.9; text-decoration:none; font-size:.95rem; }
+.nav:hover { text-decoration:underline; }
+main { padding:20px 16px 48px; }
+#zone { display:block; border:2px dashed var(--bord); background:var(--carte); border-radius:14px; padding:36px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s; }
+#zone:hover, #zone.survol { border-color:var(--accent); }
+#zone strong { display:block; font-size:1.15rem; margin-bottom:4px; }
+#zone span { color:var(--muet); font-size:.9rem; }
+#fichier { display:none; }
+.message { margin:16px 0; padding:12px 14px; border-radius:10px; background:var(--carte); border:1px solid var(--bord); }
+.message.erreur { border-color:#e0a3a3; background:#fdecec; color:#7d1c1c; }
+.message.attention { border-color:#ecd18a; background:#fff7df; color:#6b4f00; }
+.barre { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin:20px 0 10px; }
+.bouton { background:#1f4e79; color:#fff; border:0; font-weight:700; padding:12px 20px; border-radius:10px; cursor:pointer; font-size:1rem; }
+.bouton:hover { background:#173d60; }
+.cadre { overflow-x:auto; background:var(--carte); border:1px solid var(--bord); border-radius:12px; }
+table { width:100%; border-collapse:collapse; font-size:.92rem; min-width:640px; }
+th, td { padding:6px 10px; border-bottom:1px solid var(--bord); text-align:left; vertical-align:middle; }
+th { background:#e9eef4; color:#333; font-size:.82rem; }
+@media (prefers-color-scheme: dark) { th { background:#232b35; color:#cfd7e1; } }
+td.t { font-weight:700; white-space:nowrap; }
+td.t img { width:26px; height:26px; vertical-align:middle; margin-right:6px; }
+td.mode { text-align:center; font-weight:700; }
+.Été { background:#fde7b0; color:#7a4b00; }
+.Hybride { background:#d4efd6; color:#1d6331; }
+.Hiver { background:#d3e5fb; color:#17457e; }
+.inconnu { color:#b00020; font-weight:600; }
+.muet { color:var(--muet); font-size:.85rem; }
+footer { color:var(--muet); font-size:.8rem; margin-top:28px; }
+</style>
+</head>
+<body>
+<div class="haut"><div>
+  <a class="nav" href="index.html">← Météo des villes</a>
+  <h1>Cliniques du jour</h1>
+  <p id="soustitre">Chargement de la météo du matin…</p>
+</div></div>
+<main>
+  <label id="zone" for="fichier">
+    <strong>Glisse ici ton PDF « Mode par cliniques »</strong>
+    <span>ou clique pour le choisir · le fichier reste sur ton ordinateur, il n'est envoyé nulle part</span>
+  </label>
+  <input type="file" id="fichier" accept="application/pdf,.pdf">
+  <div id="messages"></div>
+  <div id="resultat" hidden>
+    <div class="barre">
+      <div id="resume"></div>
+      <button class="bouton" id="telecharger" type="button">⬇ Télécharger le PDF</button>
+    </div>
+    <div class="cadre"><table>
+      <thead><tr><th>Clinique</th><th>Secteur météo</th><th>Jour</th><th>Nuit</th><th style="text-align:center">Transmed</th><th style="text-align:center">24 h</th></tr></thead>
+      <tbody id="lignes"></tbody>
+    </table></div>
+  </div>
+  <footer>Seules les cliniques qui ont un mode inscrit dans ton PDF sont gardées (celles qui partent aujourd'hui).
+  Météo : Environnement et Changement climatique Canada (meteo.gc.ca), mise à jour chaque matin vers 5 h 30.<br>
+  <b>Transmed</b> : Hybride si le jour est à 0 °C ou moins, sinon Été.
+  <b>24 h</b> : Hiver si la nuit est à -10 °C ou moins ou si le jour est sous -5 °C ; sinon Hybride si le jour ou la nuit est à 0 °C ou moins ; sinon Été.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// Correspondance clinique -> secteur météo d'Environnement Canada.
+// Clé = nom de la clinique sans « Inn. » / « Innomar », sans accents, en minuscules,
+// sans ce qui est entre parenthèses. Valeur = [code du secteur, nom affiché].
+// Pour ajouter une clinique : ajoute une ligne ici.
+// ---------------------------------------------------------------------------
+const CORRESPONDANCE = {
+  // Québec
+  "alma": ["qc-144", "Alma"],
+  "angus": ["qc-147", "Montréal"],
+  "baie comeau": ["qc-160", "Baie-Comeau"],
+  "beauce": ["qc-b6", "Saint-Georges"],
+  "brossard": ["qc-109", "Longueuil"],
+  "chateauguay": ["qc-49", "Beauharnois"],
+  "clermont": ["qc-11", "La Malbaie"],
+  "cowansville": ["qc-61", "Cowansville"],
+  "downtown": ["qc-147", "Montréal"],
+  "drummondville": ["qc-2", "Drummondville"],
+  "gatineau": ["qc-126", "Gatineau"],
+  "iles de la madeleine": ["qc-103", "Îles-de-la-Madeleine"],
+  "jgh": ["qc-147", "Montréal"],
+  "la pocatiere": ["qc-70", "Kamouraska"],
+  "levis": ["qc-78", "Lévis"],
+  "maisonneuve rosemont": ["qc-147", "Montréal"],
+  "mont st hilaire": ["qc-92", "Mont-Saint-Hilaire"],
+  "mont laurier": ["qc-47", "Mont-Laurier"],
+  "notre dame des prairies": ["qc-137", "Joliette"],
+  "pointe claire": ["qc-147", "Montréal"],
+  "quebec": ["qc-133", "Québec"],
+  "rimouski": ["qc-138", "Rimouski"],
+  "riviere du loup": ["qc-108", "Rivière-du-Loup"],
+  "rouyn noranda": ["qc-148", "Rouyn-Noranda"],
+  "roxton pond": ["qc-5", "Granby"],
+  "saguenay": ["qc-166", "Saguenay"],
+  "sept iles": ["qc-141", "Sept-Îles"],
+  "sherbrooke": ["qc-136", "Sherbrooke"],
+  "sorel": ["qc-c6", "Sorel-Tracy"],
+  "st antonin": ["qc-108", "Rivière-du-Loup"],
+  "st eustache": ["qc-b4", "Saint-Eustache"],
+  "st hyacinthe": ["qc-22", "Saint-Hyacinthe"],
+  "st jean sur richelieu": ["qc-28", "Saint-Jean-sur-Richelieu"],
+  "st jerome": ["qc-13", "Saint-Jérôme"],
+  "ste agathe des monts": ["qc-33", "Sainte-Agathe"],
+  "terrebonne": ["qc-c7", "Terrebonne"],
+  "thetford mines": ["qc-c8", "Thetford Mines"],
+  "trois rivieres": ["qc-130", "Trois-Rivières"],
+  "val d or": ["qc-149", "Val-d'Or"],
+  "vaudreuil": ["qc-66", "Vaudreuil-Dorion"],
+  "victoriaville": ["qc-157", "Victoriaville"],
+  "chandler": ["qc-d4", "Chandler"],
+  "laval": ["qc-76", "Laval"],
+  "ville mont royal": ["qc-147", "Montréal"],
+  // Ontario
+  "barrie": ["on-151", "Barrie"], "belleville": ["on-3", "Belleville"], "burlington": ["on-95", "Burlington"],
+  "cornwall": ["on-152", "Cornwall"], "etobicoke": ["on-143", "Toronto"], "hamilton": ["on-77", "Hamilton"],
+  "kanata": ["on-118", "Ottawa"], "kingston": ["on-69", "Kingston"], "leslie station": ["on-143", "Toronto"],
+  "london": ["on-137", "London"], "mississauga": ["on-24", "Mississauga"], "newmarket": ["on-25", "Newmarket"],
+  "north bay": ["on-139", "North Bay"], "ottawa": ["on-118", "Ottawa"], "pembroke": ["on-131", "Pembroke"],
+  "richmond hill": ["on-59", "Richmond Hill"], "sarnia": ["on-147", "Sarnia"], "scarborough": ["on-143", "Toronto"],
+  "sudbury": ["on-40", "Grand Sudbury"], "windsor": ["on-94", "Windsor"], "toronto": ["on-143", "Toronto"],
+  "kitchener": ["on-82", "Kitchener-Waterloo"], "oshawa": ["on-117", "Oshawa"], "ridgemont ottawa": ["on-118", "Ottawa"],
+  "westboro": ["on-118", "Ottawa"],
+  // Autres provinces
+  "bathurst": ["nb-28", "Bathurst"], "campbellton": ["nb-2", "Campbellton"], "caraquet": ["nb-22", "Bas-Caraquet"],
+  "dieppe": ["nb-36", "Moncton"], "moncton": ["nb-36", "Moncton"], "moncton university": ["nb-36", "Moncton"],
+  "st john": ["nb-23", "Saint John"], "tracadie": ["nb-20", "Tracadie-Sheila"], "fredericton": ["nb-29", "Fredericton"],
+  "charlottetown": ["pe-5", "Charlottetown"], "dartmouth": ["ns-19", "Halifax"], "halifax": ["ns-19", "Halifax"],
+  "clarenville": ["nl-1", "Clarenville"], "calgary north": ["ab-52", "Calgary"], "calgary south": ["ab-52", "Calgary"],
+  "calgary midnapore": ["ab-52", "Calgary"], "regina": ["sk-32", "Regina"], "winnipeg": ["mb-38", "Winnipeg"],
+  "winnipeg south": ["mb-38", "Winnipeg"], "langley": ["bc-100", "Langley"], "delta surrey": ["bc-74", "Vancouver"],
+  "richmond": ["bc-96", "Richmond"], "vancouver fairmont": ["bc-74", "Vancouver"],
+};
+
+// ---------------------------------------------------------------------------
+// Règles d'emballage (les mêmes que le rapport du matin)
+// ---------------------------------------------------------------------------
+function emballageTransmed(jour) {
+  if (jour == null) return null;
+  return jour <= 0 ? "Hybride" : "Été";
+}
+function emballage24h(jour, nuit) {
+  if (jour == null || nuit == null) return null;
+  if (nuit <= -10 || jour < -5) return "Hiver";
+  if (jour <= 0 || nuit <= 0) return "Hybride";
+  return "Été";
+}
+const COULEURS = { "Été": ["#fde7b0", "#7a4b00"], "Hybride": ["#d4efd6", "#1d6331"], "Hiver": ["#d3e5fb", "#17457e"] };
+
+// ---------------------------------------------------------------------------
+function normaliser(txt) {
+  return txt.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/\*\*.*$/, "").replace(/\(.*?\)/g, " ").replace(/\(.*$/, " ")
+    .replace(/^\s*(inn\.?|innomar)\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function nomSecteurNormalise(nom) {
+  return normaliser(nom).replace(/\bsaint\b/g, "st").replace(/\bsainte\b/g, "ste");
+}
+const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+function dateLongue(d) { return `${JOURS[d.getDay()]} ${d.getDate()}${d.getDate() === 1 ? "er" : ""} ${MOIS[d.getMonth()]} ${d.getFullYear()}`; }
+function deg(v) { return v == null ? "—" : `${Math.round(v)}°C`; }
+
+// ---------------------------------------------------------------------------
+// Icônes météo (mêmes dessins que le rapport du matin), dessinées sur un canevas
+// ---------------------------------------------------------------------------
+const PLUIE = new Set([6, 11, 12, 13, 28, 36]), NEIGE = new Set([8, 16, 17, 18, 25, 26, 38, 40]);
+const MIXTE = new Set([7, 14, 15, 27, 37]), ORAGE = new Set([9, 19, 39, 41, 42, 46, 47, 48]), BRUME = new Set([23, 24, 44, 45]);
+const cacheIcones = {};
+function icone(code, nuitDemandee) {
+  if (code == null) return null;
+  const cle = code + (nuitDemandee ? "n" : "j");
+  if (cacheIcones[cle]) return cacheIcones[cle];
+  const t = 96, cv = document.createElement("canvas"); cv.width = cv.height = t;
+  const c = cv.getContext("2d");
+  c.translate(0, t); c.scale(1, -1);   // repère vers le haut, comme dans le rapport du matin
+  const cercle = (x, y, r, remplir, contour) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); if (remplir) { c.fillStyle = remplir; c.fill(); } if (contour) { c.strokeStyle = contour; c.stroke(); } };
+  const ligne = (x1, y1, x2, y2) => { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
+  const soleil = (x, y, r) => {
+    c.strokeStyle = "#f39200"; c.lineWidth = r * 0.16; c.lineCap = "round";
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ligne(x + Math.cos(a) * r * 1.3, y + Math.sin(a) * r * 1.3, x + Math.cos(a) * r * 1.75, y + Math.sin(a) * r * 1.75); }
+    c.lineWidth = r * 0.08; cercle(x, y, r, "#f9b233", "#f39200");
+  };
+  const lune = (x, y, r) => {
+    cercle(x, y, r * 1.55, "#1b2a4a"); cercle(x + r * 0.15, y, r * 0.95, "#fff4c2"); cercle(x - r * 0.35, y + r * 0.2, r * 0.85, "#1b2a4a");
+    for (const [dx, dy, s] of [[-0.9, -0.55, 0.09], [-0.55, 0.95, 0.07], [0.25, -1.05, 0.06], [-1.15, 0.3, 0.06]]) cercle(x + dx * r, y + dy * r, r * s, "#ffffff");
+  };
+  const nuage = (x, y, w, gris) => {
+    const fond = gris ? "#b9c3ce" : "#dfe5ec", h = w * 0.36, r = h / 2;
+    c.lineWidth = w * 0.03; c.strokeStyle = "#9aa7b6"; c.fillStyle = fond;
+    c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+    c.lineTo(x + r, y + h); c.arc(x + r, y + r, r, Math.PI / 2, Math.PI * 1.5); c.closePath(); c.fill(); c.stroke();
+    cercle(x + w * 0.35, y + h * 0.95, w * 0.22, fond, "#9aa7b6"); cercle(x + w * 0.62, y + h * 0.85, w * 0.17, fond, "#9aa7b6");
+    c.strokeStyle = fond; c.lineWidth = w * 0.05; ligne(x + w * 0.12, y + h * 0.5, x + w * 0.88, y + h * 0.5);
+  };
+  const nuit = nuitDemandee || (code >= 30 && code <= 39);
+  let nuages;
+  if (code === 0 || code === 30) nuages = 0;
+  else if (code === 1 || code === 31) nuages = 1;
+  else if ([2, 32, 6, 7, 8, 9, 36, 37, 38, 39].includes(code)) nuages = 2;
+  else if (code === 3 || code === 33) nuages = 2.5;
+  else nuages = 3;
+  const [pluie, neige, mixte, orage, brume] = [PLUIE, NEIGE, MIXTE, ORAGE, BRUME].map(s => s.has(code));
+  const precip = pluie || neige || mixte || orage || brume;
+  if (nuages < 3) {
+    const gros = nuages === 0;
+    const [cx, cy, r] = gros ? [t / 2, t / 2, t * 0.24] : [t * 0.38, t * 0.62, t * 0.17];
+    (nuit ? lune : soleil)(cx, cy, r);
+  }
+  if (nuages) {
+    const w = t * (nuages === 1 ? 0.62 : 0.8), y = t * (precip ? 0.3 : 0.2);
+    nuage(t - w - t * 0.04, y, w, nuages === 3 && precip);
+  }
+  const base = t * 0.12;
+  if (pluie || mixte) {
+    c.strokeStyle = "#2d7fd3"; c.lineWidth = t * 0.06; c.lineCap = "round";
+    [0.35, 0.55, 0.75].forEach((dx, i) => { if (!(mixte && i === 1)) ligne(t * dx, base + t * 0.1, t * (dx - 0.06), base - t * 0.06); });
+  }
+  if (neige || mixte) for (const dx of (mixte ? [0.55] : [0.35, 0.55, 0.75])) cercle(t * dx, base + t * 0.02, t * 0.05, "#6aa9e9");
+  if (orage) {
+    const pts = [[0.58, 0.2], [0.44, 0.02], [0.54, 0.02], [0.46, -0.14], [0.66, 0.08], [0.56, 0.08], [0.64, 0.2]];
+    c.beginPath(); pts.forEach(([px, py], i) => (i ? c.lineTo : c.moveTo).call(c, t * px, t * py + base)); c.closePath();
+    c.fillStyle = "#f9b233"; c.fill(); c.strokeStyle = "#f39200"; c.lineWidth = t * 0.02; c.stroke();
+  }
+  if (brume) { c.strokeStyle = "#9aa7b6"; c.lineWidth = t * 0.05; c.lineCap = "round"; for (let i = 0; i < 3; i++) ligne(t * 0.15, t * (0.3 + i * 0.18), t * 0.85, t * (0.3 + i * 0.18)); }
+  return (cacheIcones[cle] = cv.toDataURL("image/png"));
+}
+
+// ---------------------------------------------------------------------------
+// Météo du matin (préparée par le robot à 5 h 30)
+// ---------------------------------------------------------------------------
+let METEO = null;
+const nomsSecteurs = {};
+const pret = fetch("secteurs.json?" + Date.now()).then(r => r.json()).then(d => {
+  METEO = d;
+  for (const [id, v] of Object.entries(d.secteurs)) nomsSecteurs[nomSecteurNormalise(v[4])] ??= id;
+  const g = new Date(d.genere);
+  document.getElementById("soustitre").textContent =
+    `Météo du ${dateLongue(g)}, mise à jour à ${String(g.getHours()).padStart(2, "0")} h ${String(g.getMinutes()).padStart(2, "0")}`;
+}).catch(() => {
+  document.getElementById("soustitre").textContent = "Météo du matin introuvable";
+  message("La météo du matin n'est pas encore disponible. Elle sera prête après le prochain passage du robot (5 h 30).", "erreur");
+});
+
+function message(txt, type = "") {
+  const d = document.createElement("div"); d.className = "message " + type; d.textContent = txt;
+  document.getElementById("messages").appendChild(d);
+}
+
+// ---------------------------------------------------------------------------
+// Lecture du PDF « Mode par cliniques »
+// ---------------------------------------------------------------------------
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+else message("Le lecteur de PDF n'a pas pu se charger. Vérifie ta connexion Internet puis recharge la page.", "erreur");
+
+async function lirePdf(fichier) {
+  const pdf = await pdfjsLib.getDocument({ data: await fichier.arrayBuffer() }).promise;
+  const cliniques = []; let dateFichier = null;
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const hauteur = page.getViewport({ scale: 1 }).height;
+    const mots = (await page.getTextContent()).items
+      .filter(it => it.str && it.str.trim())
+      .map(it => ({ txt: it.str.trim(), x: it.transform[4], y: hauteur - it.transform[5] }));
+    const titre = mots.map(m => m.txt).join(" ").match(/(\d{4}-\d{2}-\d{2})/);
+    if (titre && !dateFichier) dateFichier = titre[1];
+    // Colonnes : positions des en-têtes « Clinique » et « Mode »
+    const entetesC = mots.filter(m => /^Clinique$/i.test(m.txt)).sort((a, b) => a.x - b.x);
+    const entetesM = mots.filter(m => /^Mode$/i.test(m.txt) && entetesC.length && Math.abs(m.y - entetesC[0].y) < 4).sort((a, b) => a.x - b.x);
+    if (!entetesC.length) continue;
+    const yEntete = entetesC[0].y;
+    entetesC.forEach((ec, i) => {
+      const xMin = ec.x - 5, xMax = i + 1 < entetesC.length ? entetesC[i + 1].x - 5 : Infinity;
+      const xMode = (entetesM[i] || { x: ec.x + 180 }).x - 30;
+      const dansCol = mots.filter(m => m.y > yEntete + 4 && m.x >= xMin && m.x < xMax);
+      const noms = dansCol.filter(m => m.x < xMode).sort((a, b) => a.y - b.y || a.x - b.x);
+      const modes = dansCol.filter(m => m.x >= xMode);
+      // Regrouper les morceaux de nom par ligne
+      const lignes = [];
+      for (const m of noms) {
+        const der = lignes[lignes.length - 1];
+        if (der && Math.abs(der.y - m.y) < 3) der.txt += " " + m.txt;
+        else lignes.push({ y: m.y, txt: m.txt });
+      }
+      // Une nouvelle clinique commence par « Inn » ; sinon c'est la suite du nom précédent
+      const lesCliniques = [];
+      for (const l of lignes) {
+        if (/^inn/i.test(l.txt) || !lesCliniques.length) lesCliniques.push({ y: l.y, nom: l.txt, mode: "" });
+        else lesCliniques[lesCliniques.length - 1].nom += " " + l.txt;
+      }
+      for (const m of modes) {
+        let cible = null;
+        for (const c of lesCliniques) if (c.y <= m.y + 6) cible = c;
+        if (cible) cible.mode = (cible.mode + " " + m.txt).trim();
+      }
+      cliniques.push(...lesCliniques);
+    });
+  }
+  return { cliniques, dateFichier };
+}
+
+// ---------------------------------------------------------------------------
+let RAPPORT = null;
+async function traiter(fichier) {
+  document.getElementById("messages").innerHTML = "";
+  document.getElementById("resultat").hidden = true;
+  if (!fichier || !/\.pdf$/i.test(fichier.name)) { message("Choisis un fichier PDF.", "erreur"); return; }
+  await pret;
+  if (!METEO) return;
+  let lu;
+  try { lu = await lirePdf(fichier); }
+  catch (e) { message("Impossible de lire ce PDF : " + e.message, "erreur"); return; }
+  const partent = lu.cliniques.filter(c => c.mode);
+  if (!lu.cliniques.length) { message("Je n'ai trouvé aucune clinique dans ce PDF. Est-ce bien le rapport « Mode par cliniques » ?", "erreur"); return; }
+  if (!partent.length) { message(`Aucune des ${lu.cliniques.length} cliniques n'a de mode inscrit : rien ne part aujourd'hui selon ce fichier.`, "attention"); return; }
+
+  const g = new Date(METEO.genere);
+  const aujourdHui = `${g.getFullYear()}-${String(g.getMonth() + 1).padStart(2, "0")}-${String(g.getDate()).padStart(2, "0")}`;
+  if (lu.dateFichier && lu.dateFichier !== aujourdHui)
+    message(`Attention : ton PDF est daté du ${lu.dateFichier}, mais la météo est celle du ${aujourdHui}.`, "attention");
+
+  const lignes = partent.map(c => {
+    const nomAffiche = c.nom.replace(/\s+/g, " ").trim();
+    const cle = normaliser(nomAffiche);
+    let [id, secteur] = CORRESPONDANCE[cle] || [];
+    if (!id && nomsSecteurs[cle.replace(/\bsaint\b/g, "st").replace(/\bsainte\b/g, "ste")]) {
+      id = nomsSecteurs[cle.replace(/\bsaint\b/g, "st").replace(/\bsainte\b/g, "ste")];
+      secteur = METEO.secteurs[id][4];
+    }
+    const m = id ? METEO.secteurs[id] : null;
+    const jour = m ? m[0] : null, nuit = m ? m[2] : null;
+    return { nom: nomAffiche, secteur: secteur || null, jour, codeJour: m ? m[1] : null, nuit, codeNuit: m ? m[3] : null,
+             transmed: m ? emballageTransmed(jour) : null, h24: m ? emballage24h(jour, nuit) : null };
+  });
+  const inconnus = lignes.filter(l => !l.secteur);
+  if (inconnus.length) message(`Secteur météo inconnu pour : ${inconnus.map(l => l.nom).join(", ")}. Dis-le-moi et je l'ajouterai.`, "attention");
+  if (lignes.some(l => l.secteur && l.jour == null))
+    message("La météo a été mise à jour après la fin de la journée : la température de jour n'est plus disponible.", "attention");
+
+  RAPPORT = { lignes, genere: g, total: lu.cliniques.length };
+  afficher();
+}
+
+function afficher() {
+  const tb = document.getElementById("lignes"); tb.innerHTML = "";
+  for (const l of RAPPORT.lignes) {
+    const tr = document.createElement("tr");
+    const cell = (html, cls) => { const td = document.createElement("td"); if (cls) td.className = cls; td.innerHTML = html; tr.appendChild(td); };
+    const esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+    const img = (code, n) => { const u = icone(code, n); return u ? `<img src="${u}" alt="">` : ""; };
+    cell(`<strong>${esc(l.nom)}</strong>`);
+    cell(l.secteur ? esc(l.secteur) : `<span class="inconnu">Inconnu</span>`, "muet");
+    cell(l.secteur ? img(l.codeJour, false) + deg(l.jour) : "—", "t");
+    cell(l.secteur ? img(l.codeNuit, true) + deg(l.nuit) : "—", "t");
+    cell(l.transmed || "—", "mode " + (l.transmed || ""));
+    cell(l.h24 || "—", "mode " + (l.h24 || ""));
+    tb.appendChild(tr);
+  }
+  document.getElementById("resume").innerHTML =
+    `<strong>${RAPPORT.lignes.length} cliniques partent aujourd'hui</strong> <span class="muet">(sur ${RAPPORT.total} dans le fichier)</span>`;
+  document.getElementById("resultat").hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// PDF du rapport (même style que le rapport du matin)
+// ---------------------------------------------------------------------------
+function creerPdf() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const W = 612, H = 792, marge = 34;
+  const cols = [150, 108, 24, 44, 24, 44, 72, 72];   // Clinique, Secteur, icône, jour, icône, nuit, Transmed, 24 h
+  const larg = cols.reduce((a, b) => a + b, 0), x0 = (W - larg) / 2;
+  const xs = cols.reduce((acc, w, i) => (acc.push(i ? acc[i - 1] + cols[i - 1] : x0), acc), []);
+  const n = RAPPORT.lignes.length;
+  const hautTitre = 60, hautEntetes = 40, hautLegende = 34;
+  const dispo = H - 2 * marge - hautTitre - hautEntetes - hautLegende;
+  let hLigne = Math.min(24, dispo / n);
+  const unePage = hLigne >= 13;
+  if (!unePage) hLigne = 20;
+  const g = RAPPORT.genere;
+  const heure = `${String(g.getHours()).padStart(2, "0")}:${String(g.getMinutes()).padStart(2, "0")}`;
+
+  const entetes = (y) => {
+    doc.setFillColor(31, 78, 121); doc.rect(x0, y, larg, 20, "F");
+    doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+    doc.text("Cliniques qui partent aujourd'hui", x0 + larg / 2, y + 14, { align: "center" });
+    y += 20;
+    doc.setFillColor(233, 238, 244); doc.rect(x0, y, larg, 18, "F");
+    doc.setTextColor(51); doc.setFontSize(8.5);
+    doc.text("Clinique", xs[0] + 6, y + 12); doc.text("Secteur météo", xs[1] + 6, y + 12);
+    doc.text("Jour", xs[2] + (cols[2] + cols[3]) / 2, y + 12, { align: "center" });
+    doc.text("Nuit", xs[4] + (cols[4] + cols[5]) / 2, y + 12, { align: "center" });
+    doc.text("Transmed", xs[6] + cols[6] / 2, y + 12, { align: "center" });
+    doc.text("24 h", xs[7] + cols[7] / 2, y + 12, { align: "center" });
+    return y + 18;
+  };
+
+  let y = marge;
+  doc.setTextColor(31, 78, 121); doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+  doc.text(`Cliniques du ${dateLongue(g)}`, W / 2, y + 18, { align: "center" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(102);
+  doc.text(`Maximum le jour, minimum la nuit · Météo de ${heure} · Source : meteo.gc.ca`, W / 2, y + 32, { align: "center" });
+  y += hautTitre - 14;
+  let debutTableau = y;
+  y = entetes(y);
+
+  const police = Math.max(7.5, Math.min(9.5, hLigne * 0.45));
+  RAPPORT.lignes.forEach((l, i) => {
+    if (!unePage && y + hLigne > H - marge - hautLegende) {
+      doc.setDrawColor(184, 195, 207); doc.setLineWidth(0.6); doc.rect(x0, debutTableau, larg, y - debutTableau);
+      doc.addPage(); y = marge; debutTableau = y; y = entetes(y);
+    }
+    if (i % 2) { doc.setFillColor(246, 248, 250); doc.rect(x0, y, larg, hLigne, "F"); }
+    const milieu = y + hLigne / 2 + police * 0.35;
+    doc.setTextColor(28); doc.setFont("helvetica", "bold"); doc.setFontSize(police);
+    doc.text(doc.splitTextToSize(l.nom, cols[0] - 10)[0], xs[0] + 6, milieu);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(l.secteur ? 90 : 176, l.secteur ? 100 : 0, l.secteur ? 110 : 32);
+    doc.text(doc.splitTextToSize(l.secteur || "Inconnu", cols[1] - 10)[0], xs[1] + 6, milieu);
+    const tailleIcone = Math.min(20, hLigne - 3);
+    for (const [col, code, nuit, val] of [[2, l.codeJour, false, l.jour], [4, l.codeNuit, true, l.nuit]]) {
+      const u = l.secteur ? icone(code, nuit) : null;
+      if (u) doc.addImage(u, "PNG", xs[col] + (cols[col] - tailleIcone) / 2, y + (hLigne - tailleIcone) / 2, tailleIcone, tailleIcone);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(28); doc.setFontSize(police + 1.5);
+      doc.text(l.secteur ? deg(val) : "—", xs[col + 1] + cols[col + 1] / 2, milieu, { align: "center" });
+    }
+    for (const [col, mode] of [[6, l.transmed], [7, l.h24]]) {
+      if (mode) {
+        const [fond, texte] = COULEURS[mode];
+        doc.setFillColor(fond); doc.rect(xs[col], y, cols[col], hLigne, "F");
+        doc.setTextColor(texte);
+      } else doc.setTextColor(120);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(police);
+      doc.text(mode || "—", xs[col] + cols[col] / 2, milieu, { align: "center" });
+    }
+    doc.setDrawColor(211, 218, 226); doc.setLineWidth(0.4); doc.line(x0, y + hLigne, x0 + larg, y + hLigne);
+    y += hLigne;
+  });
+  // Traits verticaux et cadre
+  doc.setDrawColor(211, 218, 226); doc.setLineWidth(0.4);
+  for (const c of [1, 2, 4, 7]) doc.line(xs[c], debutTableau + 20, xs[c], y);
+  doc.setDrawColor(143, 161, 181); doc.setLineWidth(0.8); doc.line(xs[6], debutTableau + 20, xs[6], y);
+  doc.setDrawColor(184, 195, 207); doc.setLineWidth(0.6); doc.rect(x0, debutTableau, larg, y - debutTableau);
+
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(68);
+  doc.text("Transmed : Hybride si le jour est à 0 °C ou moins, sinon Été.", W / 2, y + 14, { align: "center" });
+  doc.text("24 h : Hiver si la nuit est à -10 °C ou moins ou si le jour est sous -5 °C ; sinon Hybride si le jour ou la nuit est à 0 °C ou moins ; sinon Été.",
+           W / 2, y + 24, { align: "center" });
+  const d = RAPPORT.genere;
+  doc.save(`cliniques-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}.pdf`);
+}
+
+// ---------------------------------------------------------------------------
+const zone = document.getElementById("zone"), champ = document.getElementById("fichier");
+champ.addEventListener("change", () => traiter(champ.files[0]));
+["dragenter", "dragover"].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add("survol"); }));
+["dragleave", "drop"].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove("survol"); }));
+zone.addEventListener("drop", e => traiter(e.dataTransfer.files[0]));
+document.getElementById("telecharger").addEventListener("click", creerPdf);
+</script>
+</body>
+</html>
