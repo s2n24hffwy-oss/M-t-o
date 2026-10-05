@@ -419,8 +419,12 @@ function creerPdf() {
     doc.setDrawColor(TRAIT); doc.setLineWidth(0.9); doc.line(x0, y + hEntete, x0 + larg, y + hEntete);
     return y + hEntete;
   };
+  const separations = [];   // traits entre les cliniques, tracés à la fin pour rester par-dessus les couleurs
   const cadre = (debut, fin) => {
-    doc.setDrawColor(TRAIT); doc.setLineWidth(0.8);
+    doc.setDrawColor(TRAIT); doc.setLineWidth(0.7);
+    for (const ys of separations) doc.line(x0, ys, x0 + larg, ys);
+    separations.length = 0;
+    doc.setLineWidth(0.8);
     for (const c of [1, 2, 4, 6, 7]) doc.line(xs[c], debut + hBandeau, xs[c], fin);
     doc.setDrawColor(NOIR); doc.setLineWidth(1.4); doc.rect(x0, debut, larg, fin - debut);
   };
@@ -460,7 +464,7 @@ function creerPdf() {
       doc.setFont("helvetica", "bold"); doc.setFontSize(police);
       doc.text(mode || "—", xs[col] + cols[col] / 2, milieu, { align: "center" });
     }
-    doc.setDrawColor(TRAIT); doc.setLineWidth(0.6); doc.line(x0, y + hLigne, x0 + larg, y + hLigne);
+    separations.push(y + hLigne);
     y += hLigne;
   });
   cadre(debutTableau, y);
