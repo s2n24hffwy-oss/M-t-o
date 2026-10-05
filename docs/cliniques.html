@@ -386,84 +386,89 @@ function afficher() {
 function creerPdf() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const W = 612, H = 792, marge = 34;
-  const cols = [150, 108, 24, 44, 24, 44, 72, 72];   // Clinique, Secteur, icône, jour, icône, nuit, Transmed, 24 h
+  const W = 612, H = 792, marge = 24;
+  const cols = [170, 120, 30, 50, 30, 50, 57, 57];   // Clinique, Secteur, icône, jour, icône, nuit, Transmed, 24 h
   const larg = cols.reduce((a, b) => a + b, 0), x0 = (W - larg) / 2;
   const xs = cols.reduce((acc, w, i) => (acc.push(i ? acc[i - 1] + cols[i - 1] : x0), acc), []);
   const n = RAPPORT.lignes.length;
-  const hautTitre = 60, hautEntetes = 40, hautLegende = 34;
-  const dispo = H - 2 * marge - hautTitre - hautEntetes - hautLegende;
-  let hLigne = Math.min(24, dispo / n);
+  const hautTitre = 52, hBandeau = 24, hEntete = 22, hautLegende = 30;
+  const dispo = H - 2 * marge - hautTitre - hBandeau - hEntete - hautLegende;
+  // Les lignes s'agrandissent pour remplir toute la page
+  let hLigne = Math.min(40, dispo / n);
   const unePage = hLigne >= 13;
-  if (!unePage) hLigne = 20;
+  if (!unePage) hLigne = 22;
+  const police = Math.max(8, Math.min(13, hLigne * 0.68));
+  const tailleIcone = Math.min(28, hLigne - 2);
+  const NOIR = 0, TRAIT = 60;   // traits foncés, lisibles en noir et blanc
   const g = RAPPORT.genere;
   const heure = `${String(g.getHours()).padStart(2, "0")}:${String(g.getMinutes()).padStart(2, "0")}`;
 
   const entetes = (y) => {
-    doc.setFillColor(31, 78, 121); doc.rect(x0, y, larg, 20, "F");
-    doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(11);
-    doc.text("Cliniques qui partent aujourd'hui", x0 + larg / 2, y + 14, { align: "center" });
-    y += 20;
-    doc.setFillColor(233, 238, 244); doc.rect(x0, y, larg, 18, "F");
-    doc.setTextColor(51); doc.setFontSize(8.5);
-    doc.text("Clinique", xs[0] + 6, y + 12); doc.text("Secteur météo", xs[1] + 6, y + 12);
-    doc.text("Jour", xs[2] + (cols[2] + cols[3]) / 2, y + 12, { align: "center" });
-    doc.text("Nuit", xs[4] + (cols[4] + cols[5]) / 2, y + 12, { align: "center" });
-    doc.text("Transmed", xs[6] + cols[6] / 2, y + 12, { align: "center" });
-    doc.text("24 h", xs[7] + cols[7] / 2, y + 12, { align: "center" });
-    return y + 18;
+    doc.setFillColor(31, 78, 121); doc.rect(x0, y, larg, hBandeau, "F");
+    doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("Cliniques qui partent aujourd'hui", x0 + larg / 2, y + 16.5, { align: "center" });
+    y += hBandeau;
+    doc.setFillColor(225, 225, 225); doc.rect(x0, y, larg, hEntete, "F");
+    doc.setTextColor(NOIR); doc.setFontSize(10.5);
+    const b = y + 15;
+    doc.text("Clinique", xs[0] + 6, b); doc.text("Secteur météo", xs[1] + 6, b);
+    doc.text("Jour", xs[2] + (cols[2] + cols[3]) / 2, b, { align: "center" });
+    doc.text("Nuit", xs[4] + (cols[4] + cols[5]) / 2, b, { align: "center" });
+    doc.text("Transmed", xs[6] + cols[6] / 2, b, { align: "center" });
+    doc.text("24 h", xs[7] + cols[7] / 2, b, { align: "center" });
+    doc.setDrawColor(TRAIT); doc.setLineWidth(0.9); doc.line(x0, y + hEntete, x0 + larg, y + hEntete);
+    return y + hEntete;
+  };
+  const cadre = (debut, fin) => {
+    doc.setDrawColor(TRAIT); doc.setLineWidth(0.8);
+    for (const c of [1, 2, 4, 6, 7]) doc.line(xs[c], debut + hBandeau, xs[c], fin);
+    doc.setDrawColor(NOIR); doc.setLineWidth(1.4); doc.rect(x0, debut, larg, fin - debut);
   };
 
   let y = marge;
-  doc.setTextColor(31, 78, 121); doc.setFont("helvetica", "bold"); doc.setFontSize(17);
-  doc.text(`Cliniques du ${dateLongue(g)}`, W / 2, y + 18, { align: "center" });
-  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(102);
-  doc.text(`Maximum le jour, minimum la nuit · Météo de ${heure} · Source : meteo.gc.ca`, W / 2, y + 32, { align: "center" });
-  y += hautTitre - 14;
+  doc.setTextColor(31, 78, 121); doc.setFont("helvetica", "bold"); doc.setFontSize(20);
+  doc.text(`Cliniques du ${dateLongue(g)}`, W / 2, y + 20, { align: "center" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(70);
+  doc.text(`Maximum le jour, minimum la nuit · Météo de ${heure} · Source : meteo.gc.ca`, W / 2, y + 36, { align: "center" });
+  y += hautTitre;
   let debutTableau = y;
   y = entetes(y);
 
-  const police = Math.max(7.5, Math.min(9.5, hLigne * 0.45));
   RAPPORT.lignes.forEach((l, i) => {
     if (!unePage && y + hLigne > H - marge - hautLegende) {
-      doc.setDrawColor(184, 195, 207); doc.setLineWidth(0.6); doc.rect(x0, debutTableau, larg, y - debutTableau);
+      cadre(debutTableau, y);
       doc.addPage(); y = marge; debutTableau = y; y = entetes(y);
     }
-    if (i % 2) { doc.setFillColor(246, 248, 250); doc.rect(x0, y, larg, hLigne, "F"); }
+    if (i % 2) { doc.setFillColor(242, 242, 242); doc.rect(x0, y, larg, hLigne, "F"); }
     const milieu = y + hLigne / 2 + police * 0.35;
-    doc.setTextColor(28); doc.setFont("helvetica", "bold"); doc.setFontSize(police);
+    doc.setTextColor(NOIR); doc.setFont("helvetica", "bold"); doc.setFontSize(police);
     doc.text(doc.splitTextToSize(l.nom, cols[0] - 10)[0], xs[0] + 6, milieu);
-    doc.setFont("helvetica", "normal"); doc.setTextColor(l.secteur ? 90 : 176, l.secteur ? 100 : 0, l.secteur ? 110 : 32);
+    doc.setFont("helvetica", "normal");
+    if (l.secteur) doc.setTextColor(40); else doc.setTextColor(176, 0, 32);
     doc.text(doc.splitTextToSize(l.secteur || "Inconnu", cols[1] - 10)[0], xs[1] + 6, milieu);
-    const tailleIcone = Math.min(20, hLigne - 3);
     for (const [col, code, nuit, val] of [[2, l.codeJour, false, l.jour], [4, l.codeNuit, true, l.nuit]]) {
       const u = l.secteur ? icone(code, nuit) : null;
       if (u) doc.addImage(u, "PNG", xs[col] + (cols[col] - tailleIcone) / 2, y + (hLigne - tailleIcone) / 2, tailleIcone, tailleIcone);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(28); doc.setFontSize(police + 1.5);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(NOIR); doc.setFontSize(police + 1.5);
       doc.text(l.secteur ? deg(val) : "—", xs[col + 1] + cols[col + 1] / 2, milieu, { align: "center" });
     }
     for (const [col, mode] of [[6, l.transmed], [7, l.h24]]) {
       if (mode) {
-        const [fond, texte] = COULEURS[mode];
-        doc.setFillColor(fond); doc.rect(xs[col], y, cols[col], hLigne, "F");
-        doc.setTextColor(texte);
-      } else doc.setTextColor(120);
+        doc.setFillColor(COULEURS[mode][0]); doc.rect(xs[col], y, cols[col], hLigne, "F");
+        doc.setTextColor(NOIR);   // texte noir : bien lisible en noir et blanc
+      } else doc.setTextColor(90);
       doc.setFont("helvetica", "bold"); doc.setFontSize(police);
       doc.text(mode || "—", xs[col] + cols[col] / 2, milieu, { align: "center" });
     }
-    doc.setDrawColor(211, 218, 226); doc.setLineWidth(0.4); doc.line(x0, y + hLigne, x0 + larg, y + hLigne);
+    doc.setDrawColor(TRAIT); doc.setLineWidth(0.6); doc.line(x0, y + hLigne, x0 + larg, y + hLigne);
     y += hLigne;
   });
-  // Traits verticaux et cadre
-  doc.setDrawColor(211, 218, 226); doc.setLineWidth(0.4);
-  for (const c of [1, 2, 4, 7]) doc.line(xs[c], debutTableau + 20, xs[c], y);
-  doc.setDrawColor(143, 161, 181); doc.setLineWidth(0.8); doc.line(xs[6], debutTableau + 20, xs[6], y);
-  doc.setDrawColor(184, 195, 207); doc.setLineWidth(0.6); doc.rect(x0, debutTableau, larg, y - debutTableau);
+  cadre(debutTableau, y);
 
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(68);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(40);
   doc.text("Transmed : Hybride si le jour est à 0 °C ou moins, sinon Été.", W / 2, y + 14, { align: "center" });
   doc.text("24 h : Hiver si la nuit est à -10 °C ou moins ou si le jour est sous -5 °C ; sinon Hybride si le jour ou la nuit est à 0 °C ou moins ; sinon Été.",
-           W / 2, y + 24, { align: "center" });
+           W / 2, y + 25, { align: "center" });
   const d = RAPPORT.genere;
   doc.save(`cliniques-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}.pdf`);
 }
